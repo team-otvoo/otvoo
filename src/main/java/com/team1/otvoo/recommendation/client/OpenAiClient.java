@@ -9,6 +9,8 @@ import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ChatClient.CallResponseSpec;
+import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Component;
@@ -125,11 +127,17 @@ public class OpenAiClient {
         """.formatted(data, parser.getFormat());
 
     // API 호출
-    String response = chatClient.prompt()
+    long start = System.currentTimeMillis();
+    CallResponseSpec response = chatClient.prompt()
         .user(userSpec -> userSpec.text(prompt))
-        .call()
-        .content();
+        .call();
+    String stringResponse = response.content();
+    Usage usage = response.chatResponse().getMetadata().getUsage();
+    long end = System.currentTimeMillis();
 
-    return parser.convert(response);
+    log.info("응답시간: {}ms", end - start);
+    log.info("입력토큰: {}, 출력토큰: {}, 전체토큰: {}, 비용: {}$", usage.getPromptTokens(), usage.getGenerationTokens(), usage.getTotalTokens(), usage.getPromptTokens() * 0.00000015 + usage.getGenerationTokens() * 0.00000060);
+
+    return parser.convert(stringResponse);
   }
 }

@@ -8,13 +8,14 @@ import com.team1.otvoo.clothes.repository.ClothesImageRepository;
 import com.team1.otvoo.recommendation.dto.RecommendationDto;
 import com.team1.otvoo.recommendation.entity.Recommendation;
 import com.team1.otvoo.recommendation.repository.RecommendationRepository;
-import com.team1.otvoo.security.CustomUserDetails;
 import com.team1.otvoo.storage.S3ImageStorage;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -28,13 +29,14 @@ public class RecommendationServiceImpl implements RecommendationService {
   private final ClothesMapper clothesMapper;
 
   @Override
-  public RecommendationDto refresh(UUID weatherId) {
+  @CachePut(value = "recommendation", key = "#p0.toString() + #p1.toString()")
+  public RecommendationDto refresh(UUID weatherId, UUID userId) {
     return clothesAiRecommendService.filterAndRecommendClothes(weatherId);
   }
 
   @Override
-  public RecommendationDto get(UUID weatherId) {
-    UUID userId = ((CustomUserDetails)(SecurityContextHolder.getContext().getAuthentication().getPrincipal())).getUser().getId();
+  @Cacheable(value = "recommendation", key = "#p0.toString() + #p1.toString()")
+  public RecommendationDto get(UUID weatherId, UUID userId) {
     Recommendation recommendation = recommendationRepository.findByWeather_IdAndUser_Id(weatherId, userId).orElse(null);
     RecommendationDto recommendationDto = null;
 
@@ -53,7 +55,7 @@ public class RecommendationServiceImpl implements RecommendationService {
                 : null;
             return clothesMapper.toOotdDto(clothes, url);
           })
-          .toList();
+          .collect(Collectors.toList());
 
       recommendationDto = new RecommendationDto(recommendation.getWeather().getId(),
           recommendation.getUser().getId(),
