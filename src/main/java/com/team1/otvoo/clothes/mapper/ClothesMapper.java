@@ -8,6 +8,7 @@ import com.team1.otvoo.clothes.entity.ClothesAttributeValue;
 import com.team1.otvoo.clothes.entity.ClothesSelectedValue;
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
 import org.mapstruct.factory.Mappers;
@@ -39,7 +40,7 @@ public interface ClothesMapper {
     return selectedValue.getDefinition().getValues()
         .stream()
         .map(ClothesAttributeValue::getValue)
-        .toList();
+        .collect(Collectors.toList());
   }
 
   default OotdDto toOotdDto(Clothes clothes, String imageUrl) {
@@ -60,6 +61,6 @@ public interface ClothesMapper {
     return values.stream()
         .map(this::toAttributeDefDto)
         .distinct() // 중복 제거
-        .toList();
+        .collect(Collectors.toList());
   }
 }
