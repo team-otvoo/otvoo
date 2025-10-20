@@ -1,6 +1,6 @@
 package com.team1.otvoo.recommendation.dto;
 
-import com.team1.otvoo.clothes.entity.ClothesType;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -16,7 +16,7 @@ import lombok.Setter;
 @Builder
 public class ClothesAiDto {
     UUID id;
-    String name;
-    ClothesType type;
-    Map<String, String> attributes;
+    String type;
+    List<String> attributes;
+    Map<String, String> aiAttributes;
 }
