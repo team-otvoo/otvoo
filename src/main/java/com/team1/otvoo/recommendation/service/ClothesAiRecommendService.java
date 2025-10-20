@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.team1.otvoo.clothes.dto.OotdDto;
 import com.team1.otvoo.clothes.entity.Clothes;
 import com.team1.otvoo.clothes.entity.ClothesImage;
+import com.team1.otvoo.clothes.entity.ClothesType;
 import com.team1.otvoo.clothes.mapper.ClothesMapper;
 import com.team1.otvoo.clothes.repository.ClothesImageRepository;
 import com.team1.otvoo.clothes.repository.ClothesRepository;
@@ -31,7 +32,7 @@ import com.team1.otvoo.weather.dto.WeatherDto;
 import com.team1.otvoo.weather.entity.WeatherForecast;
 import com.team1.otvoo.weather.mapper.WeatherMapper;
 import com.team1.otvoo.weather.repository.WeatherForecastRepository;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +76,29 @@ public class ClothesAiRecommendService {
 
     ProfileDto profileDto = profileMapper.toProfileDto(userId, profile, "image.url");
 
-    List<Clothes> clothesList = clothesRepository.findByUserIdFetch(userId);
+    // 온도 -> 계절 매핑
+    String baseSeason;
+    double temperature = weatherForecast.getTemperature().getCurrent();
+    if (temperature <= 7) {
+      baseSeason = "겨울";
+    } else if (temperature <= 22) {
+      baseSeason = "봄/가을";   // 묶어서 관리
+    } else {
+      baseSeason = "여름";
+    }
+
+    // 계절에 따라 필터링할 value List 추출
+    List<String> allowedSeasons;
+    if ("봄/가을".equals(baseSeason)) {
+      allowedSeasons = List.of("봄", "가을");
+    } else if ("여름".equals(baseSeason)) {
+      allowedSeasons = List.of("여름");
+    } else {
+      allowedSeasons = List.of("겨울");
+    }
+
+    List<Clothes> clothesList = clothesRepository.findByUserIdAndSeasons(userId, allowedSeasons);
+
     List<ClothesAiAttributes> clothesAiAttributesList =
         clothesAiAttributesRepository.findByUserIdClothes_TypeInFetch(userId);
 
@@ -91,18 +114,16 @@ public class ClothesAiRecommendService {
 
     // 2-3. 옷 Entity List -> List<ClothesAiDto> 변환
     List<ClothesAiDto> clothesAiDtos = clothesList.stream().map(clothes -> {
-      Map<String, String> combinedAttributes = new HashMap<>();
-      // 사용자 선택 속성 추가
+      List<String> combinedAttributes = new ArrayList<>();
+
+      // 사용자 선택 속성 추가 -> 코드 변환
       clothes.getSelectedValues().forEach(sv ->
-          combinedAttributes.put(sv.getDefinition().getName(), sv.getValue().getValue())
+          combinedAttributes.add(toAttrValueCode(sv.getValue().getValue()))
       );
       // AI 추출 속성 추가
       Map<String, String> aiAttrs = aiAttributesMap.get(clothes.getId());
-      if (aiAttrs != null) {
-        combinedAttributes.putAll(aiAttrs);
-      }
-      return new ClothesAiDto(clothes.getId(), clothes.getName(), clothes.getType(),
-          combinedAttributes);
+      return new ClothesAiDto(clothes.getId(), toTypeCode(clothes.getType()),
+          combinedAttributes, null);
     }).toList();
 
     // 2-4. 최종 요청 DTO 생성
@@ -185,5 +206,82 @@ public class ClothesAiRecommendService {
     log.info("새로운 추천 저장완료. Recommendation ID: {}", recommendation.getId());
 
     return savedRecommendation;
+  }
+
+  private String toTypeCode(ClothesType type) {
+    return switch (type) {
+      case TOP -> "T0";
+      case BOTTOM -> "T1";
+      case DRESS -> "T2";
+      case OUTER -> "T3";
+      case UNDERWEAR -> "T4";
+      case ACCESSORY -> "T5";
+      case SHOES -> "T6";
+      case SOCKS -> "T7";
+      case HAT -> "T8";
+      case BAG -> "T9";
+      case SCARF -> "T10";
+      case ETC -> "T11";
+    };
+  }
+
+  // 속성 Definition + Value 코드 변환
+  private String toAttrValueCode(String value) {
+    return switch (value) {
+      // 계절
+      case "봄" -> "S0";
+      case "여름" -> "S1";
+      case "가을" -> "S2";
+      case "겨울" -> "S3";
+
+      // 방수
+      case "가능" -> "WP1";
+      case "불가능" -> "WP0";
+
+      // 방풍
+      case "뛰어남" -> "WF2";
+      case "중간" -> "WF1";
+      case "방풍없음" -> "WF0";
+
+      // 색상
+      case "빨강" -> "C0";
+      case "노랑" -> "C1";
+      case "파랑" -> "C2";
+      case "검정" -> "C3";
+      case "흰색" -> "C4";
+
+      // 안감
+      case "부드러움" -> "L0";
+      case "까칠함" -> "L1";
+      case "따뜻함" -> "L2";
+
+      // 두께감
+      case "얇음" -> "TH0";
+      case "약간두꺼움" -> "TH1";
+      case "두꺼움" -> "TH2";
+
+      // 스타일
+      case "포멀" -> "ST0";
+      case "캐주얼" -> "ST1";
+      case "스트릿" -> "ST2";
+      case "아웃도어" -> "ST3";
+      case "스포츠" -> "ST4";
+
+      // 비침정도
+      case "비침없음" -> "TR0";
+      case "살짝비침" -> "TR1";
+
+      // 소매길이
+      case "민소매" -> "SL0";
+      case "반소매" -> "SL1";
+      case "7부" -> "SL2";
+      case "긴소매" -> "SL3";
+
+      // 쿨링소재
+      case "쿨링있음" -> "CL1";
+      case "쿨링없음" -> "CL0";
+
+      default -> "X"; // 정의 안 된 값
+    };
   }
 }
